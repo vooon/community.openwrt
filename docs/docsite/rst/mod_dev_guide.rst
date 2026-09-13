@@ -428,6 +428,10 @@ its ``DOCUMENTATION``/``EXAMPLES``/``RETURN`` (there is no ``.py`` file - Ansibl
 docs from the ``.yml`` sidecar, the same way it does for PowerShell modules). For example,
 ``uc_uci.uc`` + ``uc_uci.yml``.
 
+Ucode modules that need ubus (e.g. ``wg_interface``, which generates identity keys and peer
+pre-shared keys) import ``{ connect } from 'ubus'`` and call the ``wireguard``/``amneziawg``
+ubus objects (``genkey``, ``pubkey``, ``genpsk``).
+
 Runtime architecture
 """"""""""""""""""""
 
@@ -456,8 +460,10 @@ coercion, change detection and diff redaction:
   ac_load_args()
       Read and parse the module args from ``ARGV[0]`` (the JSON args file).
 
-  ac_result()
-      Build the standard ``{changed, failed, msg}`` result object.
+  ac_result(extra)
+      Build the standard ``{changed, failed, msg}`` result object. An optional ``extra``
+      dict is spread in, so module-specific fields can be pre-initialized, e.g.
+      ``ac_result({ diff: [], interfaces: [] })``.
 
   ac_exit(result, rc) / ac_fail(result, msg)
       Print the result as JSON and exit; mark the result failed.
@@ -481,6 +487,20 @@ coercion, change detection and diff redaction:
   ac_check_mode(args) / ac_trace()
       Read the check-mode flag; return a stack trace (when the optional ``debug`` ucode
       module is present) for error reporting.
+
+  ac_render_template(str, scope)
+      Render a ucode template (Jinja-style ``{{ ... }}`` / ``{% ... %}``) against a scope
+      dict and return the string. Used for templated option names and section ids.
+
+  ac_upsert_section(u, config, sid, type, want, opts)
+      Idempotently write a named UCI section: compare the current section to ``want``
+      (treating empty-string values and ``opts.drop`` keys as absent), write only when
+      something differs, and persist unless ``opts.check_mode``. Returns
+      ``{before, after, changed}``; skips building the diff when ``opts.diff`` is false.
+
+  ac_push_diff(result, header, before, after, enabled)
+      Append a ``{before, after, before_header, after_header}`` entry to ``result.diff`` so
+      Ansible's ``--diff`` displays it. Header is a UCI path (e.g. ``network.wg0``).
 
 A ucode module imports it with:
 
